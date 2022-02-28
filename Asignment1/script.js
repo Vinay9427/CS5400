@@ -1,13 +1,13 @@
 // importing fs module for file operations
 const fs = require('fs')
 
-let initialGrid; // Declaring the Grid
-let isInitialPenguPosition = true; // this helps us to trigger the penguSlider 
-let penguInitialPosition ; 
-let pathArray = []; // This array consists of the path travelled by the Pengu
-let counter = 0; // counter to check the count of the path
-let fishCount = 0; // counter to count the fishes caught by the Pengu
-let totalFishcount = 0;
+let /** Array<string> */ initialGrid; // Declaring the Grid
+let /** boolean */ isInitialPenguPosition = true; // this helps us to trigger the penguSlider 
+let /** Array<number> */ penguInitialPosition ; 
+let /** Array<number> */ pathArray = []; // This array consists of the path travelled by the Pengu
+let /** number */ counter = 0; // counter to check the count of the path
+let /** number */ fishCount = 0; // counter to count the fishes caught by the Pengu
+let /** number */ totalFishcount = 0;
 
 // Below directions are helpful for finding the co-ordinates wrt the direction of the Pengu
 let directions = [
@@ -28,9 +28,11 @@ function log(...params){
 // Reading the arguments(input and output file names) from the bash file and initializing to the variables
 const [inputFile, outputFile] = process.argv.slice(2);
 
-// this function reads the input file and note the pengu position and grid to 2d array
+/** 
+ * function reads the input file and note the pengu position and grid to 2d array
+*/
 function readAndLoadPositions(){
-  // Reading the input file which is captured in inputFile variabl
+  // Reading the input file which is captured in inputFile variable
   fs.readFile(inputFile, 'utf8' , (err, data) => {
     if (err) {
       console.error(err)
@@ -53,18 +55,26 @@ function readAndLoadPositions(){
     }
     // Clearing the initial pengu position
     initialGrid[penguInitialPosition[0]][penguInitialPosition[1]] = ' ';
-    // Calling penguSLider function
+    // 
     let output = penguSlider(initialGrid, penguInitialPosition, counter)
     writeOutputToFile(output) // Writing output to the file
   })  
 }
 
+/**
+ * Triggers the pengu movement in the grid
+ * @param {Array<string>} grid 
+ * @param {Array<number>} penguPosition 
+ * @param {number} counter 
+ * @returns {Array<string|number>} grid, fishcount and the path of the pengu when Pengu caught by a Hazard or exceeds 6 moves
+ */
 function penguSlider(grid, penguPosition, counter){
   // If Pengu caught by a Hazard
   if(grid[penguPosition[0]][penguPosition[1]] == 'U' || grid[penguPosition[0]][penguPosition[1]] == 'S'){
     console.log('----------')
     console.log('Caught by Bear/ Shark!')
     grid[penguInitialPosition[0]][penguInitialPosition[1]] = ' ';
+    // updating pengu caught position
     grid[penguPosition[0]][penguPosition[1]] = 'X';
     console.log('----------')
     return [pathArray, fishCount, grid];
@@ -73,8 +83,8 @@ function penguSlider(grid, penguPosition, counter){
   // 1. When isInitialPenguPosition is used to trigger the recursion only once and sets to false
   // 2. When penguPosition in the grid is an Snow Cell
   if((isInitialPenguPosition || grid[penguPosition[0]][penguPosition[1]] == '0') && counter < 6){
-    // generating all possible moves for the pengu by taking pengu position
     moves = getNextMoves(penguPosition);
+    // Making isInitialPenguPosition to false so it won' run more than once
     isInitialPenguPosition = false;
     const [direction, randomMove] = getRandomValidMove(moves, grid);
     pathArray.push(direction)
@@ -111,13 +121,15 @@ function penguSlider(grid, penguPosition, counter){
     console.log('----------')
     console.log('Counter 6')
     grid[penguPosition[0]][penguPosition[1]] = 'P';
-    //log(grid, 'pathArray: ', pathArray, 'fishCount: ',fishCount)
     console.log('----------')
     return [pathArray, fishCount, grid];
   }
 }
 
-// Writes the output to teh file
+/**
+ * This function writes the output to a file
+ * @param {!Array<string>} output 
+ */
 function writeOutputToFile(output){
   const [pathArray, fishCount, grid] = output;
   const content = `${pathArray.join('')}\n${fishCount}\n${grid.map(i => i.join('')).join('\n')}`;
@@ -131,7 +143,11 @@ function writeOutputToFile(output){
   })
 }
 
-// Perform this when Pengu gets stuck by hitting a Wall or by the Snow cell
+/**
+ * this function generates next move based on Pengus Position
+ * @param {!Array<number>} penguPosition 
+ * @returns {!Array<number>} All possible moves for the Pnegu
+ */
 function getNextMoves(penguPosition){
   let moves = [];
   const x = penguPosition[0];
@@ -140,11 +156,15 @@ function getNextMoves(penguPosition){
   return moves;
 }
 
-// Perform this to get a Random valid move after pengu hits by a Wall or by the Snow cell
+/**
+ * to pick a Random Valid move from the grid
+ * @param {!Array<number>} moves 
+ * @param {!Array<string>} grid 
+ * @returns {!Array<number>} direction and next move for the Pengu
+ */
 function getRandomValidMove(moves, grid){
   const randMoves = [];
   moves.forEach((item) => {
-    //log('getRandomValidMove',item)
     if(item != undefined){
       if(grid[item[1][0]][item[1][1]] != '#'){
         randMoves.push([item[0], item[1]])
@@ -152,10 +172,17 @@ function getRandomValidMove(moves, grid){
     }
   })
   const randomIndex = Math.floor(Math.random() * randMoves.length);
-  return [randMoves[randomIndex][0], randMoves[randomIndex][1]]
+  const [direction, nextRandomMove] = randMoves[randomIndex]
+  //return [randMoves[randomIndex][0], randMoves[randomIndex][1]]
+  return [direction, nextRandomMove];
 }
 
- // Anticipating the next move based on direction and current pengu position
+/**
+ * Anticipating the pengus next move based on the direction and current postion of the Pengu
+ * @param {number} direction 
+ * @param {!Array<number>} currentPos 
+ * @returns {!Array<number>}
+ */
 function continueInTheSameDirection(direction, currentPos){
   const coordinateForTheDirection = directions.find(dir => dir[0] == direction)[1];
   const [nextX, nextY] = coordinateForTheDirection;
@@ -163,4 +190,5 @@ function continueInTheSameDirection(direction, currentPos){
   return nextMove;
 }
 
+// Triggering the script
 readAndLoadPositions();
