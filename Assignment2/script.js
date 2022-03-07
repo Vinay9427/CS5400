@@ -27,7 +27,7 @@ let initialState = {
     penguStatus: null
 }
 
-const status = ["KILLED", "STUCK_BY_WALL", "STUCK_AT_SNOW"];
+const status = ["KILLED", "STUCK_BY_WALL", "STUCK_AT_SNOW","FISH_OR_ICE_CELL"];
 
 // Reading the arguments(input and output file names) from the bash file and initializing to the variables
 let [inputFile, outputFile] = process.argv.slice(2);
@@ -73,6 +73,7 @@ function readAndLoadPositions(){
         initialGrid[penguInitialPosition[0]][penguInitialPosition[1]] = ' ';
         const output = BreadthFirstSearch(initialGrid);
         log('Output: ', JSON.stringify(output))
+        writeOutputToFile(output)       
     })  
   }
 
@@ -85,35 +86,31 @@ function readAndLoadPositions(){
 
   const BreadthFirstSearch = function(grid){
       let queue = [initialState];
-      let visitedPositions = [];
-      const slidingPositions = [' ', '*'];
+      const visitedPositions = new Set()
       while(queue.length > 0){
         const currentState = queue.shift();
-        //const { direction, penguPosition, fishCount } = queue.shift();
-        console.log('currentState: ',JSON.stringify(currentState))
-
+                
         if(currentState.fishCount >= 8){
+            //log('Queue: ',JSON.stringify(queue))
             return currentState;
         }
 
-        //continueSlidingForValidMoves()
-        
-        if(slidingPositions.includes(grid[currentState.penguPosition[0]][currentState.penguPosition[1]]) && currentState.path.length > 0){
-            log('Entered snowCell or Fish Cell: ', grid[currentState.penguPosition[0]][currentState.penguPosition[1]])
-            const stuckatsomething = continueInTheSameDirection(currentState, grid)
-            log('stuckatsomething: ', stuckatsomething)
+        if(penguStatus(currentState.penguPosition) == 'KILLED'){
+            continue;
         }
 
-        const loadQueue = getNextValidMoves(currentState, grid);
+        const loadQueue = continueSlidingForValidMoves(currentState, grid)
+
         loadQueue.forEach(item => {
-            if(!visitedPositions.includes(item.penguPosition.join(''))){
+            const visitedString = hashForVisitedPositions(currentState.penguPosition, item.penguPosition,item.fishPositionsCaught)
+            if(!visitedPositions.has(visitedString)){
+                visitedPositions.add(visitedString)
                 queue.push(item)
             }
         })
-        visitedPositions.push(currentState.penguPosition.join(''))
-        log('Queue: ',JSON.stringify(queue))
+    
       }
-      return currentState;
+      //return currentState;
   }
 
 
@@ -132,7 +129,7 @@ function readAndLoadPositions(){
             moves.push(
                             { 
                                 penguPosition: nextPos, 
-                                fishPositionsCaught: fishPositionsCaught, 
+                                fishPositionsCaught: [...fishPositionsCaught], 
                                 status: penguStatus, 
                                 fishCount: fishCount, 
                                 path: path+item[0]
@@ -140,17 +137,19 @@ function readAndLoadPositions(){
                         )
         }
     })
-    log('Next Moves for ', JSON.stringify(currentState), 'are ', JSON.stringify(moves))
+    //log('Next Moves for ', JSON.stringify(currentState), 'are ', JSON.stringify(moves))
     return moves;
   }
 
 
   const continueSlidingForValidMoves = function(currentState, grid){
     const moves = getNextValidMoves(currentState, grid); 
+    log('before continueSlidingForValidMoves ',JSON.stringify(moves))
     let validMoves = [];
     for(let i = 0;i<moves.length; i++){
         validMoves.push(continueInTheSameDirection(moves[i], grid));
     }
+    log('continueSlidingForValidMoves: ',JSON.stringify(validMoves))
     return validMoves;
   }
   
@@ -166,22 +165,28 @@ function readAndLoadPositions(){
     let tempPath = currentState.path;
     let tempPosition = currentState.penguPosition;
     let tempFishCount = currentState.fishCount;
-    let tempFishCaughtPositions = currentState.fishPositionsCaught;
+    let tempFishCaughtPositions = [...currentState.fishPositionsCaught];
     let status;
     
     const rollbackPositions = ['#', '0', 'S', 'U'];
+    //const rollbackPositions = new Set(['#', '0', 'S', 'U'])
+    //log(`Checking for sliding..${tempPosition}`)
     while(!rollbackPositions.includes(grid[tempPosition[0]][tempPosition[1]])){
         if(grid[tempPosition[0]][tempPosition[1]] == '*'){
-            tempFishCount++;
-            tempFishCaughtPositions.push(tempPosition)
-            log('FishCount: ', tempFishCount)
+            if(!tempFishCaughtPositions.find(i => i[0] == tempPosition[0] && i[1] == tempPosition[1])){
+                tempFishCount++;
+                tempFishCaughtPositions.push(tempPosition)
+            }
+            // tempFishCount++;
+            // tempFishCaughtPositions.push(tempPosition)
         }
-        log(' Grid Pos before next move ', grid[tempPosition[0]][tempPosition[1]])
+        if(getCellValue(getNextMove(tempPosition, direction)) == '#'){
+            break;
+        }
         tempPosition = getNextMove(tempPosition, direction)
-        log(' Grid Pos after next move ', grid[tempPosition[0]][tempPosition[1]])
     }
     status = penguStatus(tempPosition)
-    log(`continueInTheSameDirection for stopped at , Position: ${tempPosition}- fishCount: ${tempFishCount}- Path:${tempPath}`)
+    //log(`Slided Till ${tempPosition}- Path:${tempPath}- status: ${status}`)
     return { 
             penguPosition: tempPosition, 
             fishPositionsCaught: tempFishCaughtPositions, 
@@ -207,18 +212,41 @@ function readAndLoadPositions(){
     if(getCellValue(penguPosition) == 'S' || getCellValue(penguPosition) == 'U'){
         return 'KILLED';
     }
-
+    
     if(getCellValue(penguPosition) == '0'){
         return 'STUCK_AT_SNOW';
     }
-
+    
     if(getCellValue(penguPosition) == '#'){
         return 'STUCK_BY_WALL';
+    }
+    
+    if(getCellValue(penguPosition)){
+        return 'FISH_OR_ICE_CELL';
     }
   }
 
   const getCellValue = function(position){
-      return grid[position[0]][position[1]];
+      return initialGrid[position[0]][position[1]];
+  }
+
+  const hashForVisitedPositions = function(currentPosition, newPosition,fishesCaught){
+    return `${currentPosition.join('')}-${newPosition.join('')}-${fishesCaught.join('')}`
+  }
+
+  const writeOutputToFile = function(output){
+    const {penguPosition, fishPositionsCaught, fishCount, path} = output;
+    fishPositionsCaught.forEach(item => initialGrid[item[0]][item[1]] = ' ');
+    initialGrid[penguPosition[0]][penguPosition[1]] = 'P';
+    const content = `${path}\n${fishCount}\n${initialGrid.map(i => i.join('')).join('\n')}`;
+  
+    fs.writeFile(outputFile, content, err => {
+      if (err) {
+        console.error(err)
+        return
+      }
+      log(`Successfully wrote the output to ${outputFile}`)
+    })
   }
 
 readAndLoadPositions();
