@@ -29,12 +29,6 @@ const status = ["KILLED", "STUCK_BY_WALL", "STUCK_AT_SNOW","FISH_OR_ICE_CELL"];
 // Reading the arguments(input and output file names) from the bash file and initializing to the variables
 let [inputFile, outputFile] = process.argv.slice(2);
 
-
-// if(!(inputFile && outputFile)){
-//     inputFile = 'gradinginput.txt';
-//     outputFile = 'gradingoutput.txt';
-// }
-
 function log(...params){
     return console.log(params)
   }
@@ -64,44 +58,43 @@ async function readAndLoadPositions() {
     });
   }
 
-
-  /**
-   * This performs the Bredth First Search from initial State
-   * @param {Array<string>} grid 
-   * @returns {Object<string>} the state which satisfies the goal of catching 8 fishes 
-   */
-
-  const BreadthFirstSearch = function(grid){
-      let queue = [initialState];
-      const visitedPositions = new Set()
-      while(queue.length > 0){
-        const currentState = queue.shift();
-
-        // Checking for goal condition
-        if(currentState.fishCount >= 8){
-            return currentState;
-        }
-        
-        if(penguStatus(currentState.penguPosition) == 'KILLED'){
-            // Skip to next state if pengu is KILLED
-            continue;
-        }
-
-        // exploring the un-visited states
-        const loadQueue = continueSlidingForValidStates(currentState, grid)
-        loadQueue.forEach(item => {
-            const visitedString = hashForVisitedPositions(currentState.penguPosition, item.penguPosition, item.fishPositionsCaught)
-            // Checking for the visited positions
-            if(!visitedPositions.has(visitedString)){
-                visitedPositions.add(visitedString)
-                // only push to a queue if it is not visited
-                queue.push(item)
-            }
-        })
+  const BreadthFirstSearch = function(){
+    let queue = [initialState];
+    const visitedPositions = new Set();
+    let currentState;
+    let statesToVisit;
+    while(queue.length > 0){
+      currentState = queue.shift();
+      // Checking for goal condition
+      if(currentState.fishCount >= 20){
+          return currentState;
       }
       
-  }
+      if(penguStatus(currentState.penguPosition) == 'KILLED'){
+          // Skip to next state if pengu is KILLED
+          continue;
+      }
 
+      // exploring the un-visited states
+      statesToVisit = continueSlidingForValidStates(currentState, initialGrid)
+      statesToVisit.forEach(item => {
+          const visitedString = 
+          hashForVisitedPositions(
+                                    currentState.penguPosition, 
+                                    item.penguPosition, 
+                                    item.fishPositionsCaught, 
+                                    item.path
+                                  )
+          // Checking for the visited positions
+          if(!visitedPositions.has(visitedString)){
+              visitedPositions.add(visitedString)
+              // only push to a queue if it is not visited
+              queue.push(item)
+          }
+      })
+    }
+    return currentState;
+}
 
   /**
    * to generate next valid state
@@ -109,7 +102,7 @@ async function readAndLoadPositions() {
    * @param {!Array<string>} grid 
    * @returns the next possible states 
    */
-  function getNextValidState(currentState, grid){
+  function getNextValidStates(currentState, grid){
     const { penguPosition, fishCount, path, fishPositionsCaught, penguStatus } = currentState;
     let moves = [];
     directions.forEach(item => {
@@ -126,7 +119,6 @@ async function readAndLoadPositions() {
                         )
         }
     })
-    //log('Next Moves for ', JSON.stringify(currentState), 'are ', JSON.stringify(moves))
     return moves;
   }
 
@@ -136,14 +128,12 @@ async function readAndLoadPositions() {
    * @param {*} grid is the whole 2-d Array 
    * @returns the states which needs to be enqueued to queue
    */
-
   const continueSlidingForValidStates = function(currentState, grid){
-    const moves = getNextValidState(currentState, grid); 
+    const moves = getNextValidStates(currentState, grid); 
     let validMoves = [];
     for(let i = 0;i<moves.length; i++){
         validMoves.push(continueInTheSameDirection(moves[i], grid));
     }
-    log(JSON.stringify(validMoves))
     return validMoves;
   }
   
@@ -160,9 +150,8 @@ async function readAndLoadPositions() {
     let tempFishCount = currentState.fishCount;
     let tempFishCaughtPositions = [...currentState.fishPositionsCaught];
     let status;
-    
     const rollbackPositions = new Set(['#', '0', 'S', 'U'])
-    //log(`Checking for sliding..${tempPosition}`)
+
     while(!rollbackPositions.has(grid[tempPosition[0]][tempPosition[1]])){
         if(grid[tempPosition[0]][tempPosition[1]] == '*'){
             if(!tempFishCaughtPositions.find(i => i[0] == tempPosition[0] && i[1] == tempPosition[1])){
@@ -234,10 +223,11 @@ async function readAndLoadPositions() {
    * @param { Array<number> } currentPosition Current position of the Pengu
    * @param { Array<number> } newPosition new Position of the Pengu
    * @param { number } fishesCaught fishes caught while traversing
+   * @param { string } path while traversing for goal
    * @returns a Hashed String
    */
-  const hashForVisitedPositions = function(currentPosition, newPosition,fishesCaught){
-    return `${currentPosition.join('')}-${newPosition.join('')}-${fishesCaught.join('')}`
+  const hashForVisitedPositions = function(currentPosition, newPosition, fishes, path){
+    return `${currentPosition.join('')}-${newPosition.join('')}-${fishes.join('')}-${path.length}}`
   }
 
 /**
@@ -250,10 +240,10 @@ async function readAndLoadPositions() {
         const {penguPosition, fishPositionsCaught, fishCount, path} = output;
         fishPositionsCaught.forEach(item => initialGrid[item[0]][item[1]] = ' ');
         if(penguStatus(penguPosition) == 'KILLED'){
-            initialGrid[penguPosition[0]][penguPosition[1]] = 'X';
-          }else {
-            initialGrid[penguPosition[0]][penguPosition[1]] = 'P';
-          }
+          initialGrid[penguPosition[0]][penguPosition[1]] = 'X';
+        }else {
+          initialGrid[penguPosition[0]][penguPosition[1]] = 'P';
+        }
         const content = `${path}\n${fishCount}\n${initialGrid.map(i => i.join('')).join('\n')}`;
 
         fs.writeFile(outputFile, content, err => {
@@ -265,14 +255,29 @@ async function readAndLoadPositions() {
     });
   }
 
+  /**
+   * checks for goal condition
+   * @param {Object<string>} state to check the goal condition
+   * @returns a boolean 
+   */
+  const goalFunction = function(state){
+    return state.fishCount >= 16;
+  }
+
 /**
  * Initial Loader to trigger functions
  */
 const loader = async function(){
     await readAndLoadPositions();
-    const output = BreadthFirstSearch(initialGrid);
+    const depth = 0;
+    console.time()
+    const output = iterativeDeepeningDFS(goalFunction, depth);
+    console.timeEnd();
     log('Output: ', JSON.stringify(output))
     await writeOutputToFile(output)
 }
 
 loader();
+
+// https://stackoverflow.com/questions/42919469/efficient-way-to-implement-priority-queue-in-javascript
+// https://codepen.io/beaucarnes/pen/QpaQRG?editors=0012

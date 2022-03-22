@@ -114,7 +114,7 @@ async function readAndLoadPositions() {
             // exploring the un-visited states
             statesToVisit = continueSlidingForValidStates(currentState, initialGrid)
             statesToVisit.forEach(item => {
-                const visitedString = hashForVisitedPositions(currentState.penguPosition, item.penguPosition, item.fishPositionsCaught)
+                const visitedString = hashForVisitedPositions(currentState.penguPosition, item.penguPosition, item.fishPositionsCaught, item.path)
                 // Checking for the visited positions
                 if(!visitedPositions.has(visitedString)){
                     visitedPositions.add(visitedString)
@@ -261,8 +261,8 @@ async function readAndLoadPositions() {
    * @param { number } fishesCaught fishes caught while traversing
    * @returns a Hashed String
    */
-  const hashForVisitedPositions = function(currentPosition, newPosition,fishesCaught){
-    return `${currentPosition.join('')}-${newPosition.join('')}-${fishesCaught.join('')}`
+  const hashForVisitedPositions = function(currentPosition, newPosition, fishes, path){
+    return `${currentPosition.join('')}-${newPosition.join('')}-${fishes.join('')}-${path.length}}`
   }
 
 /**
@@ -274,7 +274,11 @@ async function readAndLoadPositions() {
     return new Promise((resolve, reject) => {
         const {penguPosition, fishPositionsCaught, fishCount, path} = output;
         fishPositionsCaught.forEach(item => initialGrid[item[0]][item[1]] = ' ');
-        initialGrid[penguPosition[0]][penguPosition[1]] = 'P';
+        if(penguStatus(penguPosition) == 'KILLED'){
+            initialGrid[penguPosition[0]][penguPosition[1]] = 'X';
+          }else {
+            initialGrid[penguPosition[0]][penguPosition[1]] = 'P';
+          }
         const content = `${path}\n${fishCount}\n${initialGrid.map(i => i.join('')).join('\n')}`;
 
         fs.writeFile(outputFile, content, err => {
@@ -287,7 +291,7 @@ async function readAndLoadPositions() {
   }
 
   const goalFunction = function(state){
-    return currentState.fishCount >= 20;
+    return state.fishCount >= 20;
   }
 
 /**
@@ -295,11 +299,13 @@ async function readAndLoadPositions() {
  */
 const loader = async function(){
     await readAndLoadPositions();
-    const st = new Date();
-
+    //const st = new Date();
+    const depth = 0;
+    console.time()
     const output = iterativeDeepeningDFS(initialGrid, goalFunction, depth);
-    const et = new Date();
-    log(`st : ${st}, et: ${et} Took ${(et-st)/1000} secs`)
+    console.timeEnd();
+    // const et = new Date();
+    // log(`st : ${st}, et: ${et} Took ${(et-st)/1000} secs`)
     log('Output: ', JSON.stringify(output))
     await writeOutputToFile(output)
 }
